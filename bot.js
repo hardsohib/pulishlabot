@@ -1,14 +1,39 @@
+// bot.js
 import TelegramBot from "node-telegram-bot-api";
+import express from "express";
 import dotenv from "dotenv";
 import pool from "./db.js";
 
 dotenv.config();
 
-const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
-
+// --- Setup ---
+const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
+const RENDER_URL = process.env.RENDER_URL; // e.g., https://your-bot.onrender.com
 
+if (!BOT_TOKEN || !ADMIN_ID || !ADMIN_USERNAME || !RENDER_URL) {
+  console.error("❌ Missing environment variables!");
+  process.exit(1);
+}
+
+const bot = new TelegramBot(BOT_TOKEN);
+const app = express();
+app.use(express.json());
+
+// --- Webhook setup ---
+bot.setWebHook(`${RENDER_URL}/${BOT_TOKEN}`);
+
+// Endpoint to receive Telegram updates
+app.post(`/${BOT_TOKEN}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
+
+// Optional root endpoint
+app.get("/", (req, res) => res.send("Bot is running"));
+
+// --- Menu ---
 const menu = {
   reply_markup: {
     keyboard: [
@@ -22,8 +47,7 @@ const menu = {
   }
 };
 
-
-// START
+// --- START Command ---
 bot.onText(/\/start/, async (msg) => {
   const userId = msg.from.id;
   const name = msg.from.first_name;
@@ -40,11 +64,10 @@ bot.onText(/\/start/, async (msg) => {
 
 Botga xush kelibsiz.`,
   menu
-);
+  );
 });
 
-
-// BALANCE
+// --- BALANCE Command ---
 bot.onText(/💰 Balans/, async (msg) => {
   const userId = msg.from.id;
 
@@ -59,29 +82,26 @@ bot.onText(/💰 Balans/, async (msg) => {
 `💰 Sizning balansingiz
 
 ${balance} so'm`
-);
+  );
 });
 
-
-// DEPOSIT REQUEST
+// --- DEPOSIT REQUEST ---
 bot.onText(/💳 Pul qo‘shish/, (msg) => {
-
   bot.sendMessage(msg.chat.id,
 `💳 Balansni to‘ldirish
 
 Iltimos summani kiriting
 Masalan: 100000`
-);
+  );
 
   bot.once("message", async (m) => {
-
     const amount = parseInt(m.text);
-    if(isNaN(amount)) return;
+    if (isNaN(amount)) return;
 
     const userId = m.from.id;
     const name = m.from.first_name;
 
-    // send to admin
+    // Send request to admin
     bot.sendMessage(ADMIN_ID,
 `💳 Yangi to‘lov so‘rovi
 
@@ -89,32 +109,31 @@ Foydalanuvchi: ${name}
 Telegram ID: ${userId}
 
 Summa: ${amount} so'm`
-);
+    );
 
-    // send user admin contact
+    // Send user admin contact
     bot.sendMessage(userId,
 `💳 So‘rovingiz adminga yuborildi.
 
 To‘lov qilish uchun admin bilan bog‘laning.`,
-{
-reply_markup:{
-inline_keyboard:[
-[
-{
-text:"👤 Admin bilan bog‘lanish",
-url:`https://t.me/${ADMIN_USERNAME}`
-}
-]
-]
-}
-});
+      {
+        reply_markup:{
+          inline_keyboard:[
+            [
+              {
+                text:"👤 Admin bilan bog‘lanish",
+                url:`https://t.me/${ADMIN_USERNAME}`
+              }
+            ]
+          ]
+        }
+      }
+    );
   });
 });
 
-
-// ADMIN ADD BALANCE
+// --- ADMIN ADD BALANCE ---
 bot.onText(/\/addbalance (.+) (.+)/, async (msg, match) => {
-
   if(msg.from.id != ADMIN_ID) return;
 
   const userId = match[1];
@@ -127,7 +146,13 @@ bot.onText(/\/addbalance (.+) (.+)/, async (msg, match) => {
 
   bot.sendMessage(userId,
 `✅ Balansingiz ${amount} so'mga to‘ldirildi`
-);
+  );
 
   bot.sendMessage(msg.chat.id,"Balance added");
+});
+
+// --- Start Express server ---
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Bot listening on port ${PORT}`);
 });
