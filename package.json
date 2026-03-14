@@ -1,6 +1,7 @@
 {
   "name": "pulishlabot",
   "version": "1.0.0",
+  "type": "module",
   "description": "Telegram earning bot",
   "main": "bot.js",
   "scripts": {
